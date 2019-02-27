@@ -1,0 +1,21 @@
+import java.util.*;
+
+public class GraphNode {
+	String Vertex;
+	List<String> Edges = new ArrayList<String>();
+	
+	GraphNode(String vertex) {
+		this.Vertex = vertex;
+		this.Edges = new ArrayList<String>();	
+	}
+	
+	public void AddEdge(String edge) {
+		if(!this.Edges.contains(edge)) {			
+			this.Edges.add(edge);
+		}
+	}
+	
+	public List<String> getEdges() {
+		return this.Edges;
+	}
+}

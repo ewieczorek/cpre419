@@ -1,0 +1,33 @@
+import java.util.*;
+
+public class GraphNode {
+	private String Vertex;
+	private List<String> OutputEdges = new ArrayList<String>();
+	private List<String> InputEdges = new ArrayList<String>();
+	
+	GraphNode(String vertex) {
+		this.Vertex = vertex;
+		this.OutputEdges = new ArrayList<String>();	
+		this.InputEdges = new ArrayList<String>();	
+	}
+	
+	public void AddOutputEdge(String edge) {
+		if(!this.OutputEdges.contains(edge) && !edge.equals(Vertex)) {			
+			this.OutputEdges.add(edge);
+		}
+	}
+
+	public void AddOutputEdge(String edge) {
+		if(!this.OutputEdges.contains(edge) && !edge.equals(Vertex)) {			
+			this.OutputEdges.add(edge);
+		}
+	}
+	
+	public String getVertex() {
+		return this.Vertex;
+	}
+	
+	public List<String> getOutputEdges() {
+		return this.OutputEdges;
+	}
+}

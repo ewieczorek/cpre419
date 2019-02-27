@@ -1,0 +1,299 @@
+
+/**
+  *****************************************
+  *****************************************
+  * Cpr E 419 - Lab 2 *********************
+  *****************************************
+  *****************************************
+  */
+
+import java.io.IOException;
+import java.lang.String;
+import java.util.StringTokenizer;
+import java.util.*;
+import java.util.HashMap;
+import java.lang.Object;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+
+public class Driver {
+
+	public static void main(String[] args) throws Exception {
+
+		// Change following paths accordingly
+		String input = "/cpre419/patents.txt"; 
+		String temp = "/user/ethantw/lab3/exp1/temp";
+		String temp2 = "/user/ethantw/lab3/exp1/temp2";
+		String output = "/user/ethantw/lab3/exp1/output/"; 
+
+		// The number of reduce tasks 
+		int reduce_tasks = 8; 
+		
+		Configuration conf = new Configuration();
+
+		// Create job for round 1
+		Job job_one = Job.getInstance(conf, "Driver Program Round One");
+
+		// Attach the job to this Driver
+		job_one.setJarByClass(Driver.class);
+
+		// Fix the number of reduce tasks to run
+		// If not provided, the system decides on its own
+		job_one.setNumReduceTasks(reduce_tasks);
+
+		
+		// The datatype of the mapper output Key, Value
+		job_one.setMapOutputKeyClass(Text.class);
+		job_one.setMapOutputValueClass(Text.class);
+
+		// The datatype of the reducer output Key, Value
+		job_one.setOutputKeyClass(Text.class);
+		job_one.setOutputValueClass(Text.class);
+
+		// The class that provides the map method
+		job_one.setMapperClass(Map_One.class);
+
+		// The class that provides the reduce method
+		job_one.setReducerClass(Reduce_One.class);
+
+		// Decides how the input will be split
+		// We are using TextInputFormat which splits the data line by line
+		// This means each map method receives one line as an input
+		job_one.setInputFormatClass(TextInputFormat.class);
+
+		// Decides the Output Format
+		job_one.setOutputFormatClass(TextOutputFormat.class);
+
+		// The input HDFS path for this job
+		// The path can be a directory containing several files
+		// You can add multiple input paths including multiple directories
+		FileInputFormat.addInputPath(job_one, new Path(input));
+		
+		// This is legal
+		// FileInputFormat.addInputPath(job_one, new Path(another_input_path));
+		
+		// The output HDFS path for this job
+		// The output path must be one and only one
+		// This must not be shared with other running jobs in the system
+		FileOutputFormat.setOutputPath(job_one, new Path(temp));
+		
+		// This is not allowed
+		// FileOutputFormat.setOutputPath(job_one, new Path(another_output_path)); 
+
+		// Run the job
+		job_one.waitForCompletion(true);
+
+		// Create job for round 2
+		// The output of the previous job can be passed as the input to the next
+		// The steps are as in job 1
+
+		Job job_two = Job.getInstance(conf, "Driver Program Round Two");
+		job_two.setJarByClass(Driver.class);
+		job_two.setNumReduceTasks(1);
+
+		// Should be match with the output datatype of mapper and reducer
+		job_two.setMapOutputKeyClass(Text.class);
+		job_two.setMapOutputValueClass(Text.class);
+		job_two.setOutputKeyClass(Text.class);
+		job_two.setOutputValueClass(Text.class);
+
+		// If required the same Map / Reduce classes can also be used
+		// Will depend on logic if separate Map / Reduce classes are needed
+		// Here we show separate ones
+		job_two.setMapperClass(Map_Two.class);
+		job_two.setReducerClass(Reduce_Two.class);
+
+		job_two.setInputFormatClass(TextInputFormat.class);
+		job_two.setOutputFormatClass(TextOutputFormat.class);
+		
+		// The output of previous job set as input of the next
+		FileInputFormat.addInputPath(job_two, new Path(temp));
+		FileOutputFormat.setOutputPath(job_two, new Path(temp2));
+
+		// Run the job
+		job_two.waitForCompletion(true);
+
+		/*
+		//job three
+		Job job_three = Job.getInstance(conf, "Driver Program Round Two");
+		job_three.setJarByClass(Driver.class);
+		job_three.setNumReduceTasks(1);
+
+		// Should be match with the output datatype of mapper and reducer
+		job_three.setMapOutputKeyClass(Text.class);
+		job_three.setMapOutputValueClass(Text.class);
+		job_three.setOutputKeyClass(Text.class);
+		job_three.setOutputValueClass(IntWritable.class);
+
+		// If required the same Map / Reduce classes can also be used
+		// Will depend on logic if separate Map / Reduce classes are needed
+		// Here we show separate ones
+		job_three.setMapperClass(Map_Two.class);
+		job_three.setReducerClass(Reduce_Two.class);
+
+		job_three.setInputFormatClass(TextInputFormat.class);
+		job_three.setOutputFormatClass(TextOutputFormat.class);
+		
+		// The output of previous job set as input of the next
+		FileInputFormat.addInputPath(job_three, new Path(temp2));
+		FileOutputFormat.setOutputPath(job_three, new Path(output));
+
+		// Run the job
+		job_three.waitForCompletion(true);
+		*/
+	}
+
+	
+	public static class Map_One extends Mapper<LongWritable, Text, Text, Text> {
+		
+		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+
+			String line = value.toString();
+			
+			String[] lineArray = line.split("\\t");
+			if(lineArray.length > 1) {
+				context.write(new Text(lineArray[0]), new Text(lineArray[1] + " " + "output"));
+				context.write(new Text(lineArray[1]), new Text(lineArray[0] + " " + "input"));
+			}
+		} 
+	}
+
+	public static class Reduce_One extends Reducer<Text, Text, Text, Text> {
+		
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+			Set<String> inputSet = new HashSet<String>();
+			Set<String> outputSet = new HashSet<String>();
+			for (Text value : values) {
+				String[] lineArray = value.toString().split(" ");
+				if(lineArray[1].equals("input")) {
+					inputSet.add(lineArray[0]);
+				}
+				if(lineArray[1].equals("output")) {
+					outputSet.add(lineArray[0]);
+				}
+			}
+			for(String strin : inputSet) {
+				context.write(new Text(strin), key);
+			}
+			for(String strout : outputSet) {
+				for(String strin : inputSet) {
+					if(!strin.equals(strout)) {
+						context.write(new Text(strout), new Text(key.toString() + " " + strin));
+					}
+				}
+			}			
+		} 
+	}
+	
+	public static class Map_Two extends Mapper<Text, Text, Text, Text> {
+		
+		public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+			context.write(key, value);
+		} 
+	} 
+
+	// The second Reduce class
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
+		
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            Set<String> valueSet = new HashSet<String>();
+			for (Text value : values) {
+    			valueSet.add(value.toString());
+            }
+			context.write(new Text("key"), new Text(key.toString() + " " + valueSet.size()));
+		}
+	} 
+
+	
+	// The third Map Class
+	public static class Map_Three extends Mapper<Text, Text, Text, Text> {
+		private static Map<String, Integer> valueMap = new HashMap<String, Integer>();
+		
+		public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+			String line = value.toString();
+			String[] splitLine = line.split(" ");
+			int count = Integer.valueOf(splitLine[1]);
+			String bigram = splitLine[0];
+				
+			if(valueMap.size() < 10) {
+				valueMap.put(bigram, count);
+			}
+			else {
+				Map.Entry<String, Integer> minimumValue = null;
+				for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
+					if(minimumValue == null) {
+						minimumValue = entry;
+					}
+					if(entry.getValue() < minimumValue.getValue() ) {
+						minimumValue = entry;
+					}
+				}
+				if(count > minimumValue.getValue()) {
+					valueMap.remove(minimumValue.getKey());
+					valueMap.put(bigram, count);
+				}
+			}	
+		} 
+		
+		@Override
+		protected void cleanup(Context context) throws IOException, InterruptedException {
+			for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
+	            IntWritable count = new IntWritable(entry.getValue());
+	            Text value = new Text(entry.getKey() + " " + count.toString());
+				context.write(new Text("key"), value);
+			}	
+		} 
+	} 
+
+	// The second Reduce class
+	public static class Reduce_Three extends Reducer<Text, Text, Text, IntWritable> {
+		private static Map<String, Integer> valueReduceMap = new HashMap<String, Integer>();
+		
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            
+			
+			for (Text value : values) {
+				String line = value.toString();
+				String[] splitLine = line.split(" ");
+				int count = Integer.valueOf(splitLine[1]);
+				String bigram = splitLine[0];
+					
+				if(valueReduceMap.size() < 10) {
+					valueReduceMap.put(bigram, count);
+				}
+				else {
+					Map.Entry<String, Integer> minimumValue = null;
+					for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
+						if(minimumValue == null) {
+							minimumValue = entry;
+						}
+						if(entry.getValue() < minimumValue.getValue() ) {
+							minimumValue = entry;
+						}
+					}
+					if(count > minimumValue.getValue()) {
+						valueReduceMap.remove(minimumValue.getKey());
+						valueReduceMap.put(bigram, count);
+					}
+				}
+            }
+			for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
+	            IntWritable count = new IntWritable(entry.getValue());
+	            Text value = new Text(entry.getKey());
+				context.write(value, count);
+			}	
+		}
+	} 
+}

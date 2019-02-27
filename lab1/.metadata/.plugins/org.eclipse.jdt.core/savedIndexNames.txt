@@ -1,0 +1,10 @@
+INDEX VERSION 1.131+U:\CprE 419\lab1\.metadata\.plugins\org.eclipse.jdt.core
+378168315.index
+3615409984.index
+4042876123.index
+1938177782.index
+4199545944.index
+3248008201.index
+3728873898.index
+3353811681.index
+2247562995.index
