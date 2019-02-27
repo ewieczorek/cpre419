@@ -107,7 +107,7 @@ public class Driver {
 		job_two.setMapOutputKeyClass(Text.class);
 		job_two.setMapOutputValueClass(Text.class);
 		job_two.setOutputKeyClass(Text.class);
-		job_two.setOutputValueClass(IntWritable.class);
+		job_two.setOutputValueClass(Text.class);
 
 		// If required the same Map / Reduce classes can also be used
 		// Will depend on logic if separate Map / Reduce classes are needed
@@ -171,8 +171,7 @@ public class Driver {
 	}
 
 	public static class Reduce_One extends Reducer<Text, Text, Text, Text> {
-		Text text1 = new Text();
-		Text text2 = new Text();
+		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
 			Set<String> inputSet = new HashSet<String>();
 			Set<String> outputSet = new HashSet<String>();
@@ -186,15 +185,12 @@ public class Driver {
 				}
 			}
 			for(String strin : inputSet) {
-				text1.set(strin);
-				context.write(text1, key);
+				context.write(new Text(strin), key);
 			}
 			for(String strout : outputSet) {
 				for(String strin : inputSet) {
 					if(!strin.equals(strout)) {
-						text1.set(strout);
-						text2.set(key.toString() + " " + strin);
-						context.write(text1, text2);
+						context.write(new Text(strout), new Text(key.toString() + " " + strin));
 					}
 				}
 			}			
@@ -202,19 +198,14 @@ public class Driver {
 	}
 	
 	public static class Map_Two extends Mapper<LongWritable, Text, Text, Text> {
-		Text text1 = new Text();
-		Text text2 = new Text();
 		
 		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-			String[] line = value.toString().split("\\t", 2);
-			text1.set(line[0]);
-			text2.set(line[1]);
-			context.write(text1, text2);
+			context.write(new Text(String.valueOf(key.get())), value);
 		} 
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Two extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             //Set<String> valueSet = new HashSet<String>();
@@ -223,23 +214,23 @@ public class Driver {
 				sum += 1;
     			//valueSet.add(value.toString());
             }
-			context.write(key, new IntWritable(sum));
+			context.write(new Text("key"), new Text(key.toString() + " " + sum));
 		}
 	} 
 
 	
 	// The third Map Class
-	public static class Map_Three extends Mapper<LongWritable, Text, Text, Text> {
+	public static class Map_Three extends Mapper<Text, Text, Text, Text> {
 		private static Map<String, Integer> valueMap = new HashMap<String, Integer>();
 		
-		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+		public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
 			String line = value.toString();
-			String[] splitLine = line.split("\\t");
+			String[] splitLine = line.split(" ");
 			int count = Integer.valueOf(splitLine[1]);
-			String vertex = splitLine[0];
+			String bigram = splitLine[0];
 				
 			if(valueMap.size() < 10) {
-				valueMap.put(vertex, count);
+				valueMap.put(bigram, count);
 			}
 			else {
 				Map.Entry<String, Integer> minimumValue = null;
@@ -253,7 +244,7 @@ public class Driver {
 				}
 				if(count > minimumValue.getValue()) {
 					valueMap.remove(minimumValue.getKey());
-					valueMap.put(vertex, count);
+					valueMap.put(bigram, count);
 				}
 			}	
 		} 
