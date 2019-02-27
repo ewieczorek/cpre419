@@ -28,15 +28,15 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
-public class Driver {
+public class Driver2 {
 
 	public static void main(String[] args) throws Exception {
 
 		// Change following paths accordingly
 		String input = "/cpre419/patents.txt"; 
-		String temp = "/user/ethantw/lab3/exp1/temp";
-		String temp2 = "/user/ethantw/lab3/exp1/temp2";
-		String output = "/user/ethantw/lab3/exp1/output/"; 
+		String temp = "/user/ethantw/lab3/exp2/temp";
+		String temp2 = "/user/ethantw/lab3/exp2/temp2";
+		String output = "/user/ethantw/lab3/exp2/output/"; 
 
 		// The number of reduce tasks 
 		int reduce_tasks = 8; 
@@ -47,7 +47,7 @@ public class Driver {
 		Job job_one = Job.getInstance(conf, "Driver Program Round One");
 
 		// Attach the job to this Driver
-		job_one.setJarByClass(Driver.class);
+		job_one.setJarByClass(Driver2.class);
 
 		// Fix the number of reduce tasks to run
 		// If not provided, the system decides on its own
@@ -100,7 +100,7 @@ public class Driver {
 		// The steps are as in job 1
 
 		Job job_two = Job.getInstance(conf, "Driver Program Round Two");
-		job_two.setJarByClass(Driver.class);
+		job_two.setJarByClass(Driver2.class);
 		job_two.setNumReduceTasks(4);
 
 		// Should be match with the output datatype of mapper and reducer
@@ -128,7 +128,7 @@ public class Driver {
 		
 		//job three
 		Job job_three = Job.getInstance(conf, "Driver Program Round Three");
-		job_three.setJarByClass(Driver.class);
+		job_three.setJarByClass(Driver2.class);
 		job_three.setNumReduceTasks(1);
 
 		// Should be match with the output datatype of mapper and reducer
@@ -187,6 +187,7 @@ public class Driver {
 			}
 			for(String strin : inputSet) {
 				text1.set(strin);
+				context.write(text1, key);
 				context.write(key, text1);
 			}
 			for(String strout : outputSet) {
@@ -214,16 +215,27 @@ public class Driver {
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Two extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
+		Set<String> doubleEdges = new HashSet<String>();
+		Text text1 = new Text();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             //Set<String> valueSet = new HashSet<String>();
-            int sum = 0;
+			int sumTriplets = 0;
+			int sumTriangles = 0;
 			for (Text value : values) {
-				sum += 1;
-    			//valueSet.add(value.toString());
+				String[] splitter = value.toString().split(" ");
+				if(splitter.length == 1) {
+					doubleEdges.add(splitter[0]);
+				} else {
+					sumTriplets += 1;
+					if(doubleEdges.contains(splitter[1])) {
+						sumTriangles += 1;
+					}
+				}
             }
-			context.write(key, new IntWritable(sum));
+			text1.set(sumTriplets + " " + sumTriangles);
+			context.write(key, text1);
 		}
 	} 
 

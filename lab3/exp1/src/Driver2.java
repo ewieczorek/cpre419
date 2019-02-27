@@ -135,7 +135,7 @@ public class Driver2 {
 		job_three.setMapOutputKeyClass(Text.class);
 		job_three.setMapOutputValueClass(Text.class);
 		job_three.setOutputKeyClass(Text.class);
-		job_three.setOutputValueClass(IntWritable.class);
+		job_three.setOutputValueClass(Text.class);
 
 		// If required the same Map / Reduce classes can also be used
 		// Will depend on logic if separate Map / Reduce classes are needed
@@ -188,6 +188,7 @@ public class Driver2 {
 			for(String strin : inputSet) {
 				text1.set(strin);
 				context.write(text1, key);
+				context.write(key, text1);
 			}
 			for(String strout : outputSet) {
 				for(String strin : inputSet) {
@@ -214,97 +215,56 @@ public class Driver2 {
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Two extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
+		Set<String> doubleEdges = new HashSet<String>();
+		Text text1 = new Text();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             //Set<String> valueSet = new HashSet<String>();
-            int sum = 0;
+			int sumTriplets = 0;
+			int sumTriangles = 0;
 			for (Text value : values) {
-				sum += 1;
-    			//valueSet.add(value.toString());
+				String[] splitter = value.toString().split(" ");
+				if(splitter.length == 1) {
+					doubleEdges.add(splitter[0]);
+				} else {
+					sumTriplets += 1;
+					if(doubleEdges.contains(splitter[1])) {
+						sumTriangles += 1;
+					}
+				}
             }
-			context.write(key, new IntWritable(sum));
+			text1.set(sumTriplets + " " + sumTriangles);
+			context.write(key, text1);
 		}
 	} 
 
 	
 	// The third Map Class
 	public static class Map_Three extends Mapper<LongWritable, Text, Text, Text> {
-		private static Map<String, Integer> valueMap = new HashMap<String, Integer>();
 		
 		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-			String line = value.toString();
-			String[] splitLine = line.split("\\t");
-			int count = Integer.valueOf(splitLine[1]);
-			String vertex = splitLine[0];
-				
-			if(valueMap.size() < 10) {
-				valueMap.put(vertex, count);
-			}
-			else {
-				Map.Entry<String, Integer> minimumValue = null;
-				for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
-					if(minimumValue == null) {
-						minimumValue = entry;
-					}
-					if(entry.getValue() < minimumValue.getValue() ) {
-						minimumValue = entry;
-					}
-				}
-				if(count > minimumValue.getValue()) {
-					valueMap.remove(minimumValue.getKey());
-					valueMap.put(vertex, count);
-				}
-			}	
-		} 
-		
-		@Override
-		protected void cleanup(Context context) throws IOException, InterruptedException {
-			for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
-	            IntWritable count = new IntWritable(entry.getValue());
-	            Text value = new Text(entry.getKey() + " " + count.toString());
-				context.write(new Text("key"), value);
-			}	
+			context.write(new Text("key"), value);
 		} 
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Three extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Three extends Reducer<Text, Text, Text, Text> {
 		private static Map<String, Integer> valueReduceMap = new HashMap<String, Integer>();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            
+			double sumTriplets = 0;
+			double sumTriangles = 0;
 			
 			for (Text value : values) {
 				String line = value.toString();
-				String[] splitLine = line.split(" ");
-				int count = Integer.valueOf(splitLine[1]);
-				String bigram = splitLine[0];
-					
-				if(valueReduceMap.size() < 10) {
-					valueReduceMap.put(bigram, count);
-				}
-				else {
-					Map.Entry<String, Integer> minimumValue = null;
-					for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
-						if(minimumValue == null) {
-							minimumValue = entry;
-						}
-						if(entry.getValue() < minimumValue.getValue() ) {
-							minimumValue = entry;
-						}
-					}
-					if(count > minimumValue.getValue()) {
-						valueReduceMap.remove(minimumValue.getKey());
-						valueReduceMap.put(bigram, count);
-					}
-				}
+				String[] splitLine = line.split("\\t");
+				String[] splitSums = splitLine[1].split(" ");
+				sumTriplets += Double.parseDouble(splitSums[0]);
+				sumTriangles += Double.parseDouble(splitSums[1]);
             }
-			for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
-	            IntWritable count = new IntWritable(entry.getValue());
-	            Text value = new Text(entry.getKey());
-				context.write(value, count);
-			}	
+			double GCC = sumTriangles/(sumTriplets);
+			context.write(new Text("GCC"), new Text(String.valueOf(GCC)));
 		}
 	} 
 }
