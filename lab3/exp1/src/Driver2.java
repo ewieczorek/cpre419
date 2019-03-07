@@ -130,6 +130,33 @@ public class Driver2 {
 		job_two.waitForCompletion(true);
 
 		
+		//job three
+		Job job_three = Job.getInstance(conf, "Driver Program Round Three");
+		job_three.setJarByClass(Driver2.class);
+		job_three.setNumReduceTasks(1);
+
+		// Should be match with the output datatype of mapper and reducer
+		job_three.setMapOutputKeyClass(Text.class);
+		job_three.setMapOutputValueClass(Text.class);
+		job_three.setOutputKeyClass(Text.class);
+		job_three.setOutputValueClass(Text.class);
+
+		// If required the same Map / Reduce classes can also be used
+		// Will depend on logic if separate Map / Reduce classes are needed
+		// Here we show separate ones
+		job_three.setMapperClass(Map_Three.class);
+		job_three.setReducerClass(Reduce_Three.class);
+
+		job_three.setInputFormatClass(TextInputFormat.class);
+		job_three.setOutputFormatClass(TextOutputFormat.class);
+		
+		// The output of previous job set as input of the next
+		FileInputFormat.addInputPath(job_three, new Path(temp2));
+		FileOutputFormat.setOutputPath(job_three, new Path(output));
+
+		// Run the job
+		job_three.waitForCompletion(true);
+		
 	}
 
 	
@@ -147,16 +174,25 @@ public class Driver2 {
 		} 
 	}
 
-	private static final IntWritable one = new IntWritable(1);
-
-	public static class Reduce_One extends Reducer<IntWritable, IntWritable, Text, IntWritable> {
-		@Override
-		public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-			//Build the neighbors
-			int tempKey = key.get();
-			List<Integer> list = new ArrayList<>();
-			for(IntWritable i : values){
-				list.add(i.get());
+	public static class Reduce_One extends Reducer<Text, Text, Text, Text> {
+		Text text1 = new Text();
+		Text text2 = new Text();
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+			Set<String> inputSet = new HashSet<String>();
+			Set<String> outputSet = new HashSet<String>();
+			for (Text value : values) {
+				String[] lineArray = value.toString().split(" ");
+				if(lineArray[1].equals("input")) {
+					inputSet.add(lineArray[0]);
+				}
+				if(lineArray[1].equals("output")) {
+					outputSet.add(lineArray[0]);
+				}
+			}
+			for(String strin : inputSet) {
+				text1.set(strin);
+				context.write(text1, key);
+				context.write(key, text1);
 			}
 			Integer[] arr = list.toArray(new Integer[list.size()]);
 			Arrays.sort(arr);
@@ -188,20 +224,56 @@ public class Driver2 {
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Two extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
+		Set<String> doubleEdges = new HashSet<String>();
+		Text text1 = new Text();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-           int count = 0;
-           for(Text text : values){
-           		 count++;
-		   }
-		   if(count == 3){
-				triangles++;
-		   }
-
-		   triplets += count;
-           context.write(key, new IntWritable(count));
+            //Set<String> valueSet = new HashSet<String>();
+			int sumTriplets = 0;
+			int sumTriangles = 0;
+			for (Text value : values) {
+				String[] splitter = value.toString().split(" ");
+				if(splitter.length == 1) {
+					doubleEdges.add(splitter[0]);
+				} else {
+					sumTriplets += 1;
+					if(doubleEdges.contains(splitter[1])) {
+						sumTriangles += 1;
+					}
+				}
+            }
+			text1.set(sumTriplets + " " + sumTriangles);
+			context.write(key, text1);
 		}
 	} 
 
+	
+	// The third Map Class
+	public static class Map_Three extends Mapper<LongWritable, Text, Text, Text> {
+		
+		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+			context.write(new Text("key"), value);
+		} 
+	} 
+
+	// The second Reduce class
+	public static class Reduce_Three extends Reducer<Text, Text, Text, Text> {
+		private static Map<String, Integer> valueReduceMap = new HashMap<String, Integer>();
+		
+		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+			double sumTriplets = 0;
+			double sumTriangles = 0;
+			
+			for (Text value : values) {
+				String line = value.toString();
+				String[] splitLine = line.split("\\t");
+				String[] splitSums = splitLine[1].split(" ");
+				sumTriplets += Double.parseDouble(splitSums[0]);
+				sumTriangles += Double.parseDouble(splitSums[1]);
+            }
+			double GCC = sumTriangles/(sumTriplets);
+			context.write(new Text("GCC"), new Text(String.valueOf(GCC)));
+		}
+	} 
 }

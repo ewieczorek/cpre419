@@ -28,15 +28,15 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
-public class Driver {
+public class Driver2 {
 
 	public static void main(String[] args) throws Exception {
 
 		// Change following paths accordingly
 		String input = "/cpre419/patents.txt"; 
-		String temp = "/user/ethantw/lab3/exp1/temp";
-		String temp2 = "/user/ethantw/lab3/exp1/temp2";
-		String output = "/user/ethantw/lab3/exp1/output/"; 
+		String temp = "/user/ethantw/lab3/exp2/temp";
+		String temp2 = "/user/ethantw/lab3/exp2/temp2";
+		String output = "/user/ethantw/lab3/exp2/output/"; 
 
 		// The number of reduce tasks 
 		int reduce_tasks = 8; 
@@ -47,7 +47,7 @@ public class Driver {
 		Job job_one = Job.getInstance(conf, "Driver Program Round One");
 
 		// Attach the job to this Driver
-		job_one.setJarByClass(Driver.class);
+		job_one.setJarByClass(Driver2.class);
 
 		// Fix the number of reduce tasks to run
 		// If not provided, the system decides on its own
@@ -100,7 +100,7 @@ public class Driver {
 		// The steps are as in job 1
 
 		Job job_two = Job.getInstance(conf, "Driver Program Round Two");
-		job_two.setJarByClass(Driver.class);
+		job_two.setJarByClass(Driver2.class);
 		job_two.setNumReduceTasks(4);
 
 		// Should be match with the output datatype of mapper and reducer
@@ -128,7 +128,7 @@ public class Driver {
 		
 		//job three
 		Job job_three = Job.getInstance(conf, "Driver Program Round Three");
-		job_three.setJarByClass(Driver.class);
+		job_three.setJarByClass(Driver2.class);
 		job_three.setNumReduceTasks(1);
 
 		// Should be match with the output datatype of mapper and reducer
@@ -187,6 +187,7 @@ public class Driver {
 			}
 			for(String strin : inputSet) {
 				text1.set(strin);
+				context.write(text1, key);
 				context.write(key, text1);
 			}
 			for(String strout : outputSet) {
@@ -214,57 +215,36 @@ public class Driver {
 	} 
 
 	// The second Reduce class
-	public static class Reduce_Two extends Reducer<Text, Text, Text, IntWritable> {
+	public static class Reduce_Two extends Reducer<Text, Text, Text, Text> {
+		Set<String> doubleEdges = new HashSet<String>();
+		Text text1 = new Text();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             //Set<String> valueSet = new HashSet<String>();
-            int sum = 0;
+			int sumTriplets = 0;
+			int sumTriangles = 0;
 			for (Text value : values) {
-				sum += 1;
-    			//valueSet.add(value.toString());
+				String[] splitter = value.toString().split(" ");
+				if(splitter.length == 1) {
+					doubleEdges.add(splitter[0]);
+				} else {
+					sumTriplets += 1;
+					if(doubleEdges.contains(splitter[1])) {
+						sumTriangles += 1;
+					}
+				}
             }
-			context.write(key, new IntWritable(sum));
+			text1.set(sumTriplets + " " + sumTriangles);
+			context.write(key, text1);
 		}
 	} 
 
 	
 	// The third Map Class
 	public static class Map_Three extends Mapper<LongWritable, Text, Text, Text> {
-		private static Map<String, Integer> valueMap = new HashMap<String, Integer>();
 		
 		public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-			String line = value.toString();
-			String[] splitLine = line.split("\\t");
-			int count = Integer.valueOf(splitLine[1]);
-			String vertex = splitLine[0];
-				
-			if(valueMap.size() < 10) {
-				valueMap.put(vertex, count);
-			}
-			else {
-				Map.Entry<String, Integer> minimumValue = null;
-				for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
-					if(minimumValue == null) {
-						minimumValue = entry;
-					}
-					if(entry.getValue() < minimumValue.getValue() ) {
-						minimumValue = entry;
-					}
-				}
-				if(count > minimumValue.getValue()) {
-					valueMap.remove(minimumValue.getKey());
-					valueMap.put(vertex, count);
-				}
-			}	
-		} 
-		
-		@Override
-		protected void cleanup(Context context) throws IOException, InterruptedException {
-			for(Map.Entry<String, Integer> entry : valueMap.entrySet()) {
-	            IntWritable count = new IntWritable(entry.getValue());
-	            Text value = new Text(entry.getKey() + " " + count.toString());
-				context.write(new Text("key"), value);
-			}	
+			context.write(new Text("key"), value);
 		} 
 	} 
 
@@ -273,38 +253,18 @@ public class Driver {
 		private static Map<String, Integer> valueReduceMap = new HashMap<String, Integer>();
 		
 		public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            
+			double sumTriplets = 0;
+			double sumTriangles = 0;
 			
 			for (Text value : values) {
 				String line = value.toString();
-				String[] splitLine = line.split(" ");
-				int count = Integer.valueOf(splitLine[1]);
-				String bigram = splitLine[0];
-					
-				if(valueReduceMap.size() < 10) {
-					valueReduceMap.put(bigram, count);
-				}
-				else {
-					Map.Entry<String, Integer> minimumValue = null;
-					for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
-						if(minimumValue == null) {
-							minimumValue = entry;
-						}
-						if(entry.getValue() < minimumValue.getValue() ) {
-							minimumValue = entry;
-						}
-					}
-					if(count > minimumValue.getValue()) {
-						valueReduceMap.remove(minimumValue.getKey());
-						valueReduceMap.put(bigram, count);
-					}
-				}
+				String[] splitLine = line.split("\\t");
+				String[] splitSums = splitLine[1].split(" ");
+				sumTriplets += Double.parseDouble(splitSums[0]);
+				sumTriangles += Double.parseDouble(splitSums[1]);
             }
-			for(Map.Entry<String, Integer> entry : valueReduceMap.entrySet()) {
-	            IntWritable count = new IntWritable(entry.getValue());
-	            Text value = new Text(entry.getKey());
-				context.write(value, count);
-			}	
+			double GCC = sumTriangles/(sumTriplets/3);
+			context.write(new Text("GCC"), new Text(String.valueOf(GCC)));
 		}
 	} 
 }
